@@ -67,6 +67,34 @@ class WakeLock {
   }
 }
 
+/**
+ * Ask the browser for the whole screen.
+ *
+ * This matters more than it looks: installing the app is not available on every
+ * phone — Chrome's own installed-app shell crashes outright on some older
+ * Android builds — so the ordinary browser tab has to be able to give the child
+ * a full screen with no address bar. Only ever called from a real touch, which
+ * is the browser's condition for allowing it.
+ */
+async function enterFullscreen(): Promise<void> {
+  const root = document.documentElement;
+  if (document.fullscreenElement || !root.requestFullscreen) return;
+  try {
+    await root.requestFullscreen({ navigationUI: 'hide' });
+  } catch {
+    // Refused, or unsupported (iPhone Safari). The game works either way.
+  }
+}
+
+async function leaveFullscreen(): Promise<void> {
+  if (!document.fullscreenElement || !document.exitFullscreen) return;
+  try {
+    await document.exitFullscreen();
+  } catch {
+    // Already gone.
+  }
+}
+
 class App {
   private readonly sound = new Sound();
   private readonly visuals = new Visuals(element<HTMLCanvasElement>('canvas'));
@@ -223,6 +251,7 @@ class App {
     element('start').addEventListener('click', () => {
       void this.sound.unlock();
       void this.wakeLock.acquire();
+      void enterFullscreen();
       this.connection?.send({ type: 'start' });
     });
     element('leave').addEventListener('click', () => this.leaveRoom());
@@ -235,6 +264,7 @@ class App {
     this.room = null;
     this.goBlack();
     void this.wakeLock.release();
+    void leaveFullscreen();
     localStorage.removeItem(ROOM_KEY);
     element('resume').hidden = true;
     this.showScreen('setup');
@@ -253,6 +283,9 @@ class App {
         const turnId = this.litTurn;
         this.goBlack();
         this.connection?.send({ type: 'ack', turnId });
+        // The phones that only joined had no gesture of their own when the
+        // game started. This touch is one, so take the full screen now.
+        void enterFullscreen();
         return;
       }
       // Black screen: the adult's way out is a long hold in the top corner.
@@ -287,6 +320,7 @@ class App {
     if (room.phase === 'lobby') {
       this.goBlack();
       void this.wakeLock.release();
+      void leaveFullscreen();
       element('adult').hidden = true;
       this.showScreen('lobby');
       return;
@@ -364,10 +398,38 @@ class App {
   }
 }
 
-new App().start();
+/**
+ * Put a failure on the screen instead of leaving a dead page.
+ *
+ * On an old phone there is no console to open and often no way to attach a
+ * debugger, so a crash otherwise looks like "the app just doesn't work". This
+ * is the only place the app shows a technical message to a person.
+ */
+function reportFatal(detail: string): void {
+  const box = document.getElementById('fatal');
+  const text = document.getElementById('fatal-detail');
+  if (!box || !text) return;
+  text.textContent = `${detail}\n${navigator.userAgent}`;
+  box.hidden = false;
+}
+
+window.addEventListener('error', (event) => {
+  reportFatal(event.message || String(event.error));
+});
+window.addEventListener('unhandledrejection', (event) => {
+  reportFatal(String(event.reason));
+});
+
+try {
+  new App().start();
+} catch (error) {
+  reportFatal(error instanceof Error ? `${error.message}` : String(error));
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('/sw.js');
+    void navigator.serviceWorker.register('/sw.js').catch(() => {
+      // An old browser, or a plain-HTTP origin. The game does not need it.
+    });
   });
 }

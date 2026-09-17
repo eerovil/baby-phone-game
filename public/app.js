@@ -27,8 +27,9 @@ var Sound = class {
    * silent blip is what Safari and Chrome accept as consent.
    */
   async unlock() {
+    var _a;
     if (!this.context) {
-      const Ctor = window.AudioContext ?? window.webkitAudioContext;
+      const Ctor = (_a = window.AudioContext) != null ? _a : window.webkitAudioContext;
       if (!Ctor) return;
       this.context = new Ctor();
       this.gain = this.context.createGain();
@@ -104,14 +105,16 @@ var RoomConnection = class {
     this.connect();
   }
   close() {
+    var _a;
     this.closedByUs = true;
     this.clearTimers();
-    this.socket?.close();
+    (_a = this.socket) == null ? void 0 : _a.close();
     this.socket = null;
     this.handlers.onStatus("closed");
   }
   send(message) {
-    if (this.socket?.readyState === WebSocket.OPEN) {
+    var _a;
+    if (((_a = this.socket) == null ? void 0 : _a.readyState) === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
     }
   }
@@ -125,7 +128,7 @@ var RoomConnection = class {
     this.clearTimers();
     this.handlers.onStatus("connecting");
     const scheme = location.protocol === "https:" ? "wss" : "ws";
-    const url = `${scheme}://${location.host}/ws?room=${encodeURIComponent(this.code)}&device=${encodeURIComponent(this.deviceId)}`;
+    const url = "".concat(scheme, "://").concat(location.host, "/ws?room=").concat(encodeURIComponent(this.code), "&device=").concat(encodeURIComponent(this.deviceId));
     const socket = new WebSocket(url);
     this.socket = socket;
     socket.addEventListener("open", () => {
@@ -139,7 +142,7 @@ var RoomConnection = class {
       let message;
       try {
         message = JSON.parse(event.data);
-      } catch {
+      } catch (e) {
         return;
       }
       if (message.type === "state") this.handlers.onState(message.room, message.you);
@@ -296,7 +299,7 @@ var ROOM_CODE = /^[0-9]{6}$/;
 var ADULT_HOLD_MS = 2500;
 function element(id) {
   const found = document.getElementById(id);
-  if (!found) throw new Error(`missing element: ${id}`);
+  if (!found) throw new Error("missing element: ".concat(id));
   return found;
 }
 function deviceId() {
@@ -319,7 +322,7 @@ var WakeLock = class {
       this.sentinel.addEventListener("release", () => {
         this.sentinel = null;
       });
-    } catch {
+    } catch (e) {
       this.sentinel = null;
     }
   }
@@ -327,11 +330,26 @@ var WakeLock = class {
     const sentinel = this.sentinel;
     this.sentinel = null;
     try {
-      await sentinel?.release();
-    } catch {
+      await (sentinel == null ? void 0 : sentinel.release());
+    } catch (e) {
     }
   }
 };
+async function enterFullscreen() {
+  const root = document.documentElement;
+  if (document.fullscreenElement || !root.requestFullscreen) return;
+  try {
+    await root.requestFullscreen({ navigationUI: "hide" });
+  } catch (e) {
+  }
+}
+async function leaveFullscreen() {
+  if (!document.fullscreenElement || !document.exitFullscreen) return;
+  try {
+    await document.exitFullscreen();
+  } catch (e) {
+  }
+}
 var App = class {
   constructor() {
     __publicField(this, "sound", new Sound());
@@ -370,13 +388,13 @@ var App = class {
       return;
     }
     try {
-      const response = await fetch(`/api/rooms/${code}`);
+      const response = await fetch("/api/rooms/".concat(code));
       if (response.status === 404) {
         localStorage.removeItem(ROOM_KEY);
         return;
       }
       if (!response.ok) return;
-    } catch {
+    } catch (e) {
       return;
     }
     element("resume-code").textContent = code;
@@ -410,7 +428,7 @@ var App = class {
       if (!response.ok) throw new Error("create failed");
       const body = await response.json();
       this.enterRoom(body.code);
-    } catch {
+    } catch (e) {
       this.setNotice("Huoneen luonti ep\xE4onnistui. Tarkista verkkoyhteys.");
     }
   }
@@ -422,14 +440,14 @@ var App = class {
       return;
     }
     try {
-      const response = await fetch(`/api/rooms/${code}`);
+      const response = await fetch("/api/rooms/".concat(code));
       if (response.status === 404) {
         this.setNotice("Huonetta ei l\xF6ytynyt. Tarkista koodi.");
         return;
       }
       if (!response.ok) throw new Error("lookup failed");
       this.enterRoom(code);
-    } catch {
+    } catch (e) {
       this.setNotice("Yhteysvirhe. Yrit\xE4 uudelleen.");
     }
   }
@@ -458,32 +476,37 @@ var App = class {
         this.renderGapLabels(Number(slider.value) * 1e3);
       });
       slider.addEventListener("change", () => {
+        var _a;
         this.draggingGap = false;
-        this.connection?.send({ type: "settings", turnGapMs: Number(slider.value) * 1e3 });
+        (_a = this.connection) == null ? void 0 : _a.send({ type: "settings", turnGapMs: Number(slider.value) * 1e3 });
       });
     }
   }
   /** Both labels, in Finnish decimal notation. Zero reads as a word. */
   renderGapLabels(turnGapMs) {
-    const text = turnGapMs === 0 ? "ei taukoa" : `${(turnGapMs / 1e3).toFixed(1).replace(".", ",")} s`;
+    const text = turnGapMs === 0 ? "ei taukoa" : "".concat((turnGapMs / 1e3).toFixed(1).replace(".", ","), " s");
     element("gap-value").textContent = text;
     element("adult-gap-value").textContent = text;
   }
   bindLobby() {
     element("start").addEventListener("click", () => {
+      var _a;
       void this.sound.unlock();
       void this.wakeLock.acquire();
-      this.connection?.send({ type: "start" });
+      void enterFullscreen();
+      (_a = this.connection) == null ? void 0 : _a.send({ type: "start" });
     });
     element("leave").addEventListener("click", () => this.leaveRoom());
   }
   leaveRoom() {
-    this.connection?.send({ type: "leave" });
-    this.connection?.close();
+    var _a, _b;
+    (_a = this.connection) == null ? void 0 : _a.send({ type: "leave" });
+    (_b = this.connection) == null ? void 0 : _b.close();
     this.connection = null;
     this.room = null;
     this.goBlack();
     void this.wakeLock.release();
+    void leaveFullscreen();
     localStorage.removeItem(ROOM_KEY);
     element("resume").hidden = true;
     this.showScreen("setup");
@@ -492,10 +515,12 @@ var App = class {
   bindGame() {
     const surface = element("game");
     surface.addEventListener("pointerdown", (event) => {
+      var _a;
       if (this.litTurn !== null) {
         const turnId = this.litTurn;
         this.goBlack();
-        this.connection?.send({ type: "ack", turnId });
+        (_a = this.connection) == null ? void 0 : _a.send({ type: "ack", turnId });
+        void enterFullscreen();
         return;
       }
       if (event.clientX < window.innerWidth * 0.25 && event.clientY < window.innerHeight * 0.2) {
@@ -512,8 +537,9 @@ var App = class {
     surface.addEventListener("pointercancel", cancelHold);
     surface.addEventListener("pointerleave", cancelHold);
     element("adult-stop").addEventListener("click", () => {
+      var _a;
       element("adult").hidden = true;
-      this.connection?.send({ type: "stop" });
+      (_a = this.connection) == null ? void 0 : _a.send({ type: "stop" });
     });
     element("adult-resume").addEventListener("click", () => {
       element("adult").hidden = true;
@@ -525,6 +551,7 @@ var App = class {
     if (room.phase === "lobby") {
       this.goBlack();
       void this.wakeLock.release();
+      void leaveFullscreen();
       element("adult").hidden = true;
       this.showScreen("lobby");
       return;
@@ -569,8 +596,9 @@ var App = class {
   // --- lifecycle ---------------------------------------------------------
   bindLifecycle() {
     document.addEventListener("visibilitychange", () => {
+      var _a;
       if (document.visibilityState !== "visible") return;
-      this.connection?.ensureOpen();
+      (_a = this.connection) == null ? void 0 : _a.ensureOpen();
       void this.sound.resume();
       if (this.room && this.room.phase !== "lobby") void this.wakeLock.acquire();
     });
@@ -585,9 +613,27 @@ var App = class {
     document.body.dataset.screen = name;
   }
 };
-new App().start();
+function reportFatal(detail) {
+  const box = document.getElementById("fatal");
+  const text = document.getElementById("fatal-detail");
+  if (!box || !text) return;
+  text.textContent = "".concat(detail, "\n").concat(navigator.userAgent);
+  box.hidden = false;
+}
+window.addEventListener("error", (event) => {
+  reportFatal(event.message || String(event.error));
+});
+window.addEventListener("unhandledrejection", (event) => {
+  reportFatal(String(event.reason));
+});
+try {
+  new App().start();
+} catch (error) {
+  reportFatal(error instanceof Error ? "".concat(error.message) : String(error));
+}
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js");
+    void navigator.serviceWorker.register("/sw.js").catch(() => {
+    });
   });
 }

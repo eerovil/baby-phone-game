@@ -107,6 +107,19 @@ export class Room implements DurableObject {
     if (!message || !this.room) return;
 
     const now = Date.now();
+
+    // Any message is also a chance to notice that a turn is overdue. An alarm
+    // is normally what starts the next turn, but one can be delayed — a run
+    // right after a deployment once left a room dark for twelve seconds. Each
+    // phone pings every twenty seconds, so this turns the keepalive into a
+    // watchdog and the game cannot sit dark for ever.
+    const caughtUp = tick(this.room, now, Math.random);
+    if (caughtUp !== this.room) {
+      this.room = caughtUp;
+      await this.persist();
+      this.broadcast();
+    }
+
     switch (message.type) {
       case 'ping':
         this.send(connection, { type: 'pong' });

@@ -54,6 +54,8 @@ self.addEventListener('fetch', (event) => {
         void caches.open(CACHE).then((cache) => cache.put(request, copy));
         return response;
       })
-      .catch(() => caches.match(request).then((hit) => hit ?? caches.match('/index.html'))),
+      // Written without `??` on purpose: this file is served as-is and never
+      // compiled, and an old phone's service worker parser would reject it.
+      .catch(() => caches.match(request).then((hit) => hit || caches.match('/index.html'))),
   );
 });

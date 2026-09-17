@@ -18,7 +18,11 @@ const result = await build({
   entryPoints: [join(root, 'client', 'main.ts')],
   bundle: true,
   format: 'esm',
-  target: ['es2020', 'safari14'],
+  // Old phones are the whole point of this app, so the bundle is compiled down
+  // to what a 2017 phone's browser understands. `?.` and `??` are Chrome 80 and
+  // Safari 13.1; a phone older than that does not fail gracefully on them, it
+  // refuses to parse the file at all and the app never starts.
+  target: ['es2017', 'chrome61', 'safari11', 'firefox60'],
   minify: false,
   sourcemap: false,
   write: false,

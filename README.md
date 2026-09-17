@@ -35,6 +35,34 @@ The app remembers the last room code and this phone's own id, so the next time
 it opens it offers **Palaa huoneeseen** instead of asking for the code again.
 **Unohda** clears that.
 
+## Installing on an old Android phone
+
+On Android 9 and newer, installing from Chrome's menu just works.
+
+On **Android 8 and older the installed app crashes the moment it opens**, and
+this is not the site's fault. Chrome asks Google's minting server for a small
+wrapper APK, and that server builds it with dex bytecode version 039, which
+Android 9 introduced. Android 8 cannot read the file at all, so the process dies
+before any page loads:
+
+    Failed to open dex files from …/base.apk because:
+      Unrecognized version number in …/base.apk: 0 3 9
+    ClassNotFoundException: …webapk.shell_apk.h2o.SplashContentProvider
+
+Every PWA installed from a recent Chrome onto such a phone fails identically.
+There is no manifest setting or Chrome flag that avoids it.
+
+Two ways round it:
+
+- **With root on the phone**, run `tools/fix-webapk-android8.sh` over adb. The
+  wrapper does not use anything dex 039 added, so the script restamps it as 038,
+  repairs the header checksums and puts it back with Chrome's signature intact.
+  Verified on a Huawei PRA-LX1 running Android 8.0. Chrome refreshes a WebAPK
+  every few weeks and the refreshed one arrives broken again, so re-run it then.
+- **Without root**, use the site in Chrome instead of installing it. Tapping
+  **Aloita peli** takes the full screen, so the child still sees no browser
+  chrome — it is only the launcher icon and the standalone window that are lost.
+
 ## What is deliberately not there
 
 - No accounts, no login, no database.

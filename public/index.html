@@ -8,6 +8,8 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
     />
     <meta name="theme-color" content="#000000" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Still needed for iOS, which does not read the line above. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Vauvapeli" />
@@ -83,6 +85,20 @@
       </div>
     </div>
 
+    <!-- Shown only when the app itself fails to start. There is no console to
+         open on an old phone, so the message has to be on the page. -->
+    <div id="fatal" class="fatal" hidden>
+      <p>Sovellus ei käynnistynyt tällä selaimella.</p>
+      <pre id="fatal-detail"></pre>
+    </div>
+
+    <!-- `nomodule` runs only on a browser too old for ES modules, which would
+         otherwise ignore the script below and show a blank page for ever. -->
+    <script nomodule>
+      document.getElementById('fatal').hidden = false;
+      document.getElementById('fatal-detail').textContent =
+        'Selain ei tue JavaScript-moduuleja.\n' + navigator.userAgent;
+    </script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

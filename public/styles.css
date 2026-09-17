@@ -169,11 +169,49 @@ input {
   font-size: 0.9rem;
 }
 
+/* The one screen that is allowed to show a technical message to a person. */
+.fatal {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 10;
+  background: #300;
+  border-bottom: 2px solid var(--accent);
+  padding: 1rem;
+  font-size: 0.85rem;
+}
+
+.fatal pre {
+  margin: 0.5rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--muted);
+}
+
+/* Flexbox `gap` is Chrome 84. An older phone ignores it and every button in a
+   column touches the one above, which on a screen of full-width buttons is
+   genuinely hard to use. Only applied where `gap` is missing. */
+@supports not (gap: 1rem) {
+  .panel > * + *,
+  .resume > * + *,
+  .settings > * + *,
+  .adult > * + *,
+  form > * + * {
+    margin-top: 0.75rem;
+  }
+}
+
 /* The child-facing surface: a black rectangle and nothing else. Any chrome
    added here would show on an inactive phone, which the game must never do. */
 .game {
   position: fixed;
-  inset: 0;
+  /* Spelled out rather than `inset`, which is Chrome 87. On an older phone
+     `inset` is dropped and the surface collapses to nothing. */
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: #000;
 }
 
@@ -187,7 +225,10 @@ input {
    a normal, easily tapped dialog once it is open. */
 .adult {
   position: fixed;
-  inset: auto 1rem max(1rem, env(safe-area-inset-bottom)) 1rem;
+  top: auto;
+  right: 1rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: 1rem;
   background: #141414;
   border: 1px solid #333;
   border-radius: 1rem;
