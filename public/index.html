@@ -92,13 +92,8 @@
       <pre id="fatal-detail"></pre>
     </div>
 
-    <!-- `nomodule` runs only on a browser too old for ES modules, which would
-         otherwise ignore the script below and show a blank page for ever. -->
-    <script nomodule>
-      document.getElementById('fatal').hidden = false;
-      document.getElementById('fatal-detail').textContent =
-        'Selain ei tue JavaScript-moduuleja.\n' + navigator.userAgent;
-    </script>
-    <script type="module" src="/app.js"></script>
+    <!-- A plain script, not a module: modules are Chrome 61, and this app is
+         meant for phones older than that. -->
+    <script defer src="/app.js"></script>
   </body>
 </html>

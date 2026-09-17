@@ -17,12 +17,19 @@ const outfile = join(root, 'public', 'app.js');
 const result = await build({
   entryPoints: [join(root, 'client', 'main.ts')],
   bundle: true,
-  format: 'esm',
+  // A classic script, not a module: `<script type="module">` is Chrome 61,
+  // and an IIFE bundle drops that floor to Chrome 55 — which is as low as
+  // esbuild can compile `async` to anyway.
+  format: 'iife',
   // Old phones are the whole point of this app, so the bundle is compiled down
-  // to what a 2017 phone's browser understands. `?.` and `??` are Chrome 80 and
-  // Safari 13.1; a phone older than that does not fail gracefully on them, it
-  // refuses to parse the file at all and the app never starts.
-  target: ['es2017', 'chrome61', 'safari11', 'firefox60'],
+  // to what a 2015-era browser engine understands — the floor is Android 5.
+  // Modern syntax does not fail gracefully on an old engine: it is a parse
+  // error, the whole file is thrown away, and the app never starts at all.
+  // `?.`/`??` are Chrome 80 and async/await is Chrome 55, which is the floor:
+  // esbuild cannot compile `async` any lower than that.
+  // Safari 12 rather than 11: esbuild refuses to compile `for…of` for Safari 11,
+  // which has a known bug in it. iOS 12 runs back to the iPhone 5s.
+  target: ['es2017', 'chrome55', 'safari12', 'firefox60'],
   minify: false,
   sourcemap: false,
   write: false,
