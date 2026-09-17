@@ -16,7 +16,9 @@ milliseconds and without a browser:
 - **The gap.** `acknowledgeTurn` sets `nextTurnAt = now + settings.turnGapMs`,
   and `tick` refuses to start the next turn before that moment. The gap starts
   at `TURN_GAP_MS` (five seconds) and an adult can move it between
-  `TURN_GAP_MIN_MS` and `TURN_GAP_MAX_MS`. `applySettings` clamps whatever
+  `TURN_GAP_MIN_MS` (zero — the next phone lights up immediately, and the
+  object's alarm is simply set to a moment that has already arrived) and
+  `TURN_GAP_MAX_MS`. `applySettings` clamps whatever
   arrives rather than refusing it, so an older client cannot get stuck sending
   a number the room will not take, and it re-times a wait that is already
   running so moving the slider mid-game has a visible effect. A room stored

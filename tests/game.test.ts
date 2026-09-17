@@ -232,8 +232,23 @@ describe('adult settings', () => {
     expect(changed.nextTurnAt).toBeNull();
   });
 
+  it('allows no gap at all: the next phone lights up straight away', () => {
+    let state = applySettings(roomWith(['a', 'b']), { turnGapMs: 0 }, 0);
+    state = startGame(state, 0, alwaysFirst);
+    const lit = state.activeDeviceId!;
+
+    state = acknowledgeTurn(state, lit, state.turnId, 1_000);
+    expect(state.phase).toBe('waiting');
+    expect(state.nextTurnAt).toBe(1_000);
+
+    // The very same moment is already due — no wait at all.
+    state = tick(state, 1_000, alwaysFirst);
+    expect(state.phase).toBe('active');
+    expect(state.activeDeviceId).not.toBe(lit);
+  });
+
   it('clamps what a phone sends into the range the controls offer', () => {
-    expect(clampTurnGap(0)).toBe(TURN_GAP_MIN_MS);
+    expect(clampTurnGap(0)).toBe(0);
     expect(clampTurnGap(-5_000)).toBe(TURN_GAP_MIN_MS);
     expect(clampTurnGap(60_000)).toBe(TURN_GAP_MAX_MS);
     expect(clampTurnGap(Number.NaN)).toBe(TURN_GAP_MS);

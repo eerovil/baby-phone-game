@@ -182,9 +182,10 @@ class App {
     }
   }
 
-  /** Both labels, in Finnish decimal notation. */
+  /** Both labels, in Finnish decimal notation. Zero reads as a word. */
   private renderGapLabels(turnGapMs: number): void {
-    const text = `${(turnGapMs / 1000).toFixed(1).replace('.', ',')} s`;
+    const text =
+      turnGapMs === 0 ? 'ei taukoa' : `${(turnGapMs / 1000).toFixed(1).replace('.', ',')} s`;
     element('gap-value').textContent = text;
     element('adult-gap-value').textContent = text;
   }

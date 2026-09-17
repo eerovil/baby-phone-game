@@ -19,9 +19,12 @@
  */
 export const TURN_GAP_MS = 5_000;
 
-/** The range an adult may set the gap to, in milliseconds. */
-export const TURN_GAP_MIN_MS = 1_000;
-export const TURN_GAP_MAX_MS = 20_000;
+/**
+ * The range an adult may set the gap to, in milliseconds. Zero is allowed and
+ * means the next phone lights up as soon as the touched one goes black.
+ */
+export const TURN_GAP_MIN_MS = 0;
+export const TURN_GAP_MAX_MS = 10_000;
 
 /** A room with no connected device for this long is thrown away. */
 export const ROOM_IDLE_TTL_MS = 30 * 60 * 1000;

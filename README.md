@@ -19,7 +19,8 @@ with no app store and no developer account. The user interface is in Finnish.
 
 **Settings.** The lobby has a slider for **Tauko vuorojen välissä** — the dark
 gap between one phone being touched and the next lighting up. It starts at five
-seconds and goes from one to twenty. The setting belongs to the room, so moving
+seconds and goes from zero to ten. At zero (**ei taukoa**) the next phone lights
+up the moment the touched one goes black. The setting belongs to the room, so moving
 it on any phone changes it for all of them, and the same slider is in the adult
 menu, so it can be adjusted mid-game without stopping. Shortening the gap while
 the room is already dark shortens the wait that is running.

@@ -164,9 +164,25 @@ for (let turn = 1; turn <= TURNS; turn += 1) {
   // An out of range value is clamped rather than refused.
   a.send({ type: 'settings', turnGapMs: 999_999 });
   await Promise.all(
-    [a, b].map((phone) => phone.until((room) => room.settings.turnGapMs === 20_000)),
+    [a, b].map((phone) => phone.until((room) => room.settings.turnGapMs === 10_000)),
   );
   ok('an out of range gap was clamped to the maximum');
+
+  // Zero: the next phone should light up as fast as the round trip allows.
+  a.send({ type: 'settings', turnGapMs: 0 });
+  await Promise.all([a, b].map((phone) => phone.until((room) => room.settings.turnGapMs === 0)));
+  await Promise.all([a, b].map((phone) => phone.until((room) => room.phase === 'active')));
+  {
+    const instant = [a, b].find((phone) => phone.lit);
+    const before = instant.room.turnId;
+    const at = Date.now();
+    instant.send({ type: 'ack', turnId: before });
+    await a.until((room) => room.phase === 'active' && room.turnId === before + 1, 10_000);
+    const elapsed = Date.now() - at;
+    if (elapsed > 1_500) fail(`with no gap the next turn still took ${elapsed}ms`);
+    ok(`with the gap set to 0 the next turn came after ${elapsed}ms`);
+  }
+
   a.send({ type: 'settings', turnGapMs: 5000 });
   await a.until((room) => room.settings.turnGapMs === 5000);
 }
