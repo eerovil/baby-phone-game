@@ -292,6 +292,7 @@ function triangleWave(value) {
 // client/main.ts
 var DEVICE_KEY = "bpg.deviceId";
 var ROOM_KEY = "bpg.roomCode";
+var ROOM_CODE = /^[0-9]{6}$/;
 var ADULT_HOLD_MS = 2500;
 function element(id) {
   const found = document.getElementById(id);
@@ -351,12 +352,35 @@ var App = class {
     this.bindLobby();
     this.bindGame();
     this.bindLifecycle();
-    const remembered = localStorage.getItem(ROOM_KEY);
-    if (remembered) {
-      element("resume").hidden = false;
-      element("resume-code").textContent = remembered;
-    }
     this.showScreen("setup");
+    void this.offerRemembered();
+  }
+  /**
+   * Offer the last room — but only when there really is one to go back to.
+   *
+   * The box stays hidden unless the remembered value is a real six digit code
+   * *and* the server still has that room: an empty or junk value from an older
+   * version showed a box with no code in it, and an expired room showed a door
+   * that led nowhere. Anything that fails either check is forgotten.
+   */
+  async offerRemembered() {
+    const code = localStorage.getItem(ROOM_KEY);
+    if (!code || !ROOM_CODE.test(code)) {
+      localStorage.removeItem(ROOM_KEY);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/rooms/${code}`);
+      if (response.status === 404) {
+        localStorage.removeItem(ROOM_KEY);
+        return;
+      }
+      if (!response.ok) return;
+    } catch {
+      return;
+    }
+    element("resume-code").textContent = code;
+    element("resume").hidden = false;
   }
   // --- setup -------------------------------------------------------------
   bindSetup() {
@@ -393,7 +417,7 @@ var App = class {
   async joinRoom(code) {
     await this.sound.unlock();
     this.setNotice("");
-    if (!/^[0-9]{6}$/.test(code)) {
+    if (!ROOM_CODE.test(code)) {
       this.setNotice("Koodi on kuusi numeroa.");
       return;
     }

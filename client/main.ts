@@ -11,6 +11,9 @@ import type { RoomView } from '../src/protocol';
 const DEVICE_KEY = 'bpg.deviceId';
 const ROOM_KEY = 'bpg.roomCode';
 
+/** What a room code looks like, everywhere the client checks one. */
+const ROOM_CODE = /^[0-9]{6}$/;
+
 /** How long the adult must hold the top-left corner to reach the exit menu. */
 const ADULT_HOLD_MS = 2_500;
 
@@ -85,12 +88,38 @@ class App {
     this.bindGame();
     this.bindLifecycle();
 
-    const remembered = localStorage.getItem(ROOM_KEY);
-    if (remembered) {
-      element('resume').hidden = false;
-      element('resume-code').textContent = remembered;
-    }
     this.showScreen('setup');
+    void this.offerRemembered();
+  }
+
+  /**
+   * Offer the last room — but only when there really is one to go back to.
+   *
+   * The box stays hidden unless the remembered value is a real six digit code
+   * *and* the server still has that room: an empty or junk value from an older
+   * version showed a box with no code in it, and an expired room showed a door
+   * that led nowhere. Anything that fails either check is forgotten.
+   */
+  private async offerRemembered(): Promise<void> {
+    const code = localStorage.getItem(ROOM_KEY);
+    if (!code || !ROOM_CODE.test(code)) {
+      localStorage.removeItem(ROOM_KEY);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/rooms/${code}`);
+      if (response.status === 404) {
+        localStorage.removeItem(ROOM_KEY);
+        return;
+      }
+      if (!response.ok) return;
+    } catch {
+      // Offline. The memory is probably still good, but the room cannot be
+      // reached right now, so do not offer a button that cannot work.
+      return;
+    }
+    element('resume-code').textContent = code;
+    element('resume').hidden = false;
   }
 
   // --- setup -------------------------------------------------------------
@@ -132,7 +161,7 @@ class App {
   private async joinRoom(code: string): Promise<void> {
     await this.sound.unlock();
     this.setNotice('');
-    if (!/^[0-9]{6}$/.test(code)) {
+    if (!ROOM_CODE.test(code)) {
       this.setNotice('Koodi on kuusi numeroa.');
       return;
     }

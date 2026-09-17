@@ -30,8 +30,12 @@ body {
   overscroll-behavior: none;
 }
 
-.screen[hidden] {
-  display: none;
+/* Any rule that sets `display` beats the browser's own `[hidden]` rule, so a
+   hidden element with `display: flex` on its class stays on screen. That is
+   what put an empty "Viimeksi käytetty huone" box on the first screen. One
+   global rule, so the next control to get a class cannot repeat it. */
+[hidden] {
+  display: none !important;
 }
 
 .panel {
@@ -192,8 +196,4 @@ input {
   flex-direction: column;
   gap: 0.75rem;
   text-align: center;
-}
-
-.adult[hidden] {
-  display: none;
 }
