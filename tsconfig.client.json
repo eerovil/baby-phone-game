@@ -1,0 +1,20 @@
+{
+  // The phone side: browser libraries, no Workers types. It shares only the
+  // protocol and state types from `src/`, which are plain TypeScript.
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["client", "src/protocol.ts", "src/game.ts"]
+}

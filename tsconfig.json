@@ -1,0 +1,21 @@
+{
+  // The Worker side. Deliberately without the DOM library: the Workers types
+  // define their own WebSocket and Request, and mixing the two libraries is how
+  // you end up with errors that read like the runtime is wrong.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src", "tests", "scripts"]
+}

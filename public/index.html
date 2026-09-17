@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fi">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vauvapeli</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#000000" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Vauvapeli" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-screen="setup">
+    <main id="setup" class="screen panel">
+      <h1>Vauvapeli</h1>
+      <p class="lead">
+        Aseta kaksi tai useampi puhelin ympäri huonetta. Yksi kerrallaan syttyy ja soi — lapsi
+        kävelee sen luo ja koskettaa sitä.
+      </p>
+
+      <section id="resume" class="resume" hidden>
+        <p>Viimeksi käytetty huone <strong id="resume-code"></strong></p>
+        <button id="resume-join" class="primary" type="button">Palaa huoneeseen</button>
+        <button id="resume-forget" class="link" type="button">Unohda</button>
+      </section>
+
+      <button id="create" class="primary" type="button">Luo peli</button>
+      <button id="show-join" class="secondary" type="button">Liity peliin</button>
+
+      <form id="join-form" hidden>
+        <label for="join-code">Huonekoodi</label>
+        <input
+          id="join-code"
+          name="code"
+          inputmode="numeric"
+          pattern="[0-9]{6}"
+          maxlength="6"
+          autocomplete="off"
+          placeholder="123456"
+        />
+        <button class="primary" type="submit">Liity</button>
+      </form>
+
+      <p id="notice" class="notice" role="status"></p>
+    </main>
+
+    <main id="lobby" class="screen panel" hidden>
+      <h1>Huonekoodi</h1>
+      <p class="code" id="lobby-code">------</p>
+      <p class="lead">Syötä sama koodi muihin puhelimiin.</p>
+      <p>Puhelimia mukana: <strong id="device-count">0</strong></p>
+      <button id="start" class="primary" type="button" disabled>Aloita peli</button>
+      <p id="start-hint" class="hint">Peli tarvitsee vähintään kaksi puhelinta.</p>
+      <button id="leave" class="secondary" type="button">Poistu huoneesta</button>
+      <p id="connection" class="status" role="status"></p>
+    </main>
+
+    <!-- The child's surface. Black and empty unless this phone is the lit one. -->
+    <div id="game" class="screen game" hidden>
+      <canvas id="canvas"></canvas>
+      <div id="adult" class="adult" hidden>
+        <p>Lopetetaanko peli?</p>
+        <button id="adult-stop" class="primary" type="button">Lopeta peli</button>
+        <button id="adult-resume" class="secondary" type="button">Jatka</button>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
