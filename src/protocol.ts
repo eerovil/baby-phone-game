@@ -6,7 +6,7 @@
  * message while reconnecting is correct again the moment it reads the next one.
  */
 
-import type { Phase } from './game';
+import type { Phase, RoomSettings } from './game';
 
 export interface DeviceView {
   id: string;
@@ -16,6 +16,7 @@ export interface DeviceView {
 
 export interface RoomView {
   code: string;
+  settings: RoomSettings;
   phase: Phase;
   devices: DeviceView[];
   activeDeviceId: string | null;
@@ -32,6 +33,8 @@ export type ClientMessage =
   | { type: 'start' }
   | { type: 'stop' }
   | { type: 'leave' }
+  /** An adult moved a setting. Applies to the whole room. */
+  | { type: 'settings'; turnGapMs: number }
   /** The child touched this phone while it was lit up. */
   | { type: 'ack'; turnId: number }
   | { type: 'ping' };
@@ -62,6 +65,14 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const turnId = (value as { turnId?: unknown }).turnId;
       if (typeof turnId !== 'number' || !Number.isFinite(turnId)) return null;
       return { type: 'ack', turnId };
+    }
+    case 'settings': {
+      const turnGapMs = (value as { turnGapMs?: unknown }).turnGapMs;
+      // Out-of-range values are clamped by the state machine rather than
+      // refused here, so an older client cannot get stuck sending a rejected
+      // number. A non-number is a broken message and is dropped.
+      if (typeof turnGapMs !== 'number' || !Number.isFinite(turnGapMs)) return null;
+      return { type: 'settings', turnGapMs };
     }
     default:
       return null;

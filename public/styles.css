@@ -125,6 +125,30 @@ input {
   border-radius: 1rem;
 }
 
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid #333;
+  border-radius: 1rem;
+  text-align: left;
+}
+
+.settings label {
+  font-size: 0.95rem;
+}
+
+/* A slider a thumb can actually hit on a phone. */
+.settings input[type='range'] {
+  width: 100%;
+  height: 2.5rem;
+  accent-color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+}
+
 .notice:empty {
   display: none;
 }

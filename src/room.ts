@@ -9,6 +9,7 @@
 
 import {
   acknowledgeTurn,
+  applySettings,
   createRoom,
   disconnectDevice,
   isExpired,
@@ -18,6 +19,7 @@ import {
   startGame,
   stopGame,
   tick,
+  TURN_GAP_MS,
   type RoomState,
 } from './game';
 import { parseClientMessage, type RoomView, type ServerMessage } from './protocol';
@@ -121,6 +123,9 @@ export class Room implements DurableObject {
       case 'leave':
         this.room = removeDevice(this.room, connection.deviceId, now);
         break;
+      case 'settings':
+        this.room = applySettings(this.room, { turnGapMs: message.turnGapMs }, now);
+        break;
       case 'ack':
         // A second touch, or a touch that raced the turn ending, lands here and
         // changes nothing — the state machine checks the turn id.
@@ -181,6 +186,7 @@ export class Room implements DurableObject {
     const room = this.room!;
     return {
       code: room.code,
+      settings: { turnGapMs: room.settings?.turnGapMs ?? TURN_GAP_MS },
       phase: room.phase,
       devices: room.devices.map((device) => ({
         id: device.id,

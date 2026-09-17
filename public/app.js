@@ -342,9 +342,12 @@ var App = class {
     /** The turn this phone is currently lit up for, or null when it is black. */
     __publicField(this, "litTurn", null);
     __publicField(this, "holdTimer", null);
+    /** True while a finger is on a slider, so a broadcast cannot yank it back. */
+    __publicField(this, "draggingGap", false);
   }
   start() {
     this.bindSetup();
+    this.bindSettings();
     this.bindLobby();
     this.bindGame();
     this.bindLifecycle();
@@ -418,6 +421,30 @@ var App = class {
     this.showScreen("lobby");
   }
   // --- lobby -------------------------------------------------------------
+  /**
+   * The two gap sliders — one in the lobby, one in the adult menu. The label
+   * follows the thumb, but the room is only told on release: a drag fires an
+   * `input` event per pixel, and each one would be a message to every phone.
+   */
+  bindSettings() {
+    for (const id of ["gap", "adult-gap"]) {
+      const slider = element(id);
+      slider.addEventListener("input", () => {
+        this.draggingGap = true;
+        this.renderGapLabels(Number(slider.value) * 1e3);
+      });
+      slider.addEventListener("change", () => {
+        this.draggingGap = false;
+        this.connection?.send({ type: "settings", turnGapMs: Number(slider.value) * 1e3 });
+      });
+    }
+  }
+  /** Both labels, in Finnish decimal notation. */
+  renderGapLabels(turnGapMs) {
+    const text = `${(turnGapMs / 1e3).toFixed(1).replace(".", ",")} s`;
+    element("gap-value").textContent = text;
+    element("adult-gap-value").textContent = text;
+  }
   bindLobby() {
     element("start").addEventListener("click", () => {
       void this.sound.unlock();
@@ -499,6 +526,12 @@ var App = class {
     this.visuals.stop();
   }
   renderLobby(room) {
+    if (!this.draggingGap) {
+      const seconds = String(room.settings.turnGapMs / 1e3);
+      element("gap").value = seconds;
+      element("adult-gap").value = seconds;
+      this.renderGapLabels(room.settings.turnGapMs);
+    }
     const connected = room.devices.filter((device) => device.connected).length;
     element("lobby-code").textContent = room.code;
     element("device-count").textContent = String(connected);

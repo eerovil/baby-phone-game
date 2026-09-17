@@ -13,8 +13,15 @@ milliseconds and without a browser:
 
 - **One active phone.** `RoomState.activeDeviceId` is a single field. There is
   no representation of two active phones, so there is no state to get wrong.
-- **Five seconds.** `acknowledgeTurn` sets `nextTurnAt = now + TURN_GAP_MS`.
-  `tick` refuses to start the next turn before that moment.
+- **The gap.** `acknowledgeTurn` sets `nextTurnAt = now + settings.turnGapMs`,
+  and `tick` refuses to start the next turn before that moment. The gap starts
+  at `TURN_GAP_MS` (five seconds) and an adult can move it between
+  `TURN_GAP_MIN_MS` and `TURN_GAP_MAX_MS`. `applySettings` clamps whatever
+  arrives rather than refusing it, so an older client cannot get stuck sending
+  a number the room will not take, and it re-times a wait that is already
+  running so moving the slider mid-game has a visible effect. A room stored
+  before settings existed falls back to the default — a live room outlives a
+  deployment, and `undefined` here would make every `nextTurnAt` `NaN`.
 - **Never the same phone twice.** `beginTurn` filters the previously lit device
   out of the candidates — unless it is the only one connected, where repeating
   beats stopping.
@@ -71,11 +78,15 @@ black screen.
 
 JSON objects over one WebSocket at `/ws?room=<code>&device=<uuid>`.
 
-Phone to room: `hello`, `start`, `stop`, `leave`, `ack {turnId}`, `ping`.
+Phone to room: `hello`, `start`, `stop`, `leave`, `settings {turnGapMs}`,
+`ack {turnId}`, `ping`.
 Room to phone: `state {you, room}`, `error {code, message}`, `pong`.
 
-`state` carries the whole room: code, phase, devices, `activeDeviceId`,
-`turnId`, `variant` and `nextTurnInMs`. A phone decides it is the lit one by
+`state` carries the whole room: code, `settings`, phase, devices,
+`activeDeviceId`, `turnId`, `variant` and `nextTurnInMs`. The settings ride in
+the same message as everything else, so a phone that joins late shows the gap
+the room is actually using rather than the default. The sliders are only
+written back from a broadcast when no finger is on them. A phone decides it is the lit one by
 comparing `activeDeviceId` with its own id — it is never told "you are active"
 separately, so there is one fact rather than two that could disagree.
 

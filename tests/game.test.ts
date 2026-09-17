@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   acknowledgeTurn,
+  applySettings,
   canStart,
+  clampTurnGap,
+  TURN_GAP_MAX_MS,
+  TURN_GAP_MIN_MS,
   connectedDevices,
   createRoom,
   disconnectDevice,
@@ -192,6 +196,67 @@ describe('disconnect recovery', () => {
     expect(state.nextTurnAt).toBe(10_000 + TURN_GAP_MS);
     state = tick(state, 10_000 + TURN_GAP_MS, alwaysFirst);
     expect(state.activeDeviceId).toBe('a');
+  });
+});
+
+describe('adult settings', () => {
+  it('starts at five seconds', () => {
+    expect(roomWith([]).settings.turnGapMs).toBe(TURN_GAP_MS);
+  });
+
+  it('uses the chosen gap for the next turn', () => {
+    let state = applySettings(roomWith(['a', 'b']), { turnGapMs: 9_000 }, 0);
+    state = startGame(state, 0, alwaysFirst);
+    state = acknowledgeTurn(state, state.activeDeviceId!, state.turnId, 1_000);
+
+    expect(state.nextTurnAt).toBe(10_000);
+    expect(tick(state, 9_999, alwaysFirst).phase).toBe('waiting');
+    expect(tick(state, 10_000, alwaysFirst).phase).toBe('active');
+  });
+
+  it('re-times a wait that is already running, counted from the change', () => {
+    let state = startGame(roomWith(['a', 'b']), 0, alwaysFirst);
+    state = acknowledgeTurn(state, state.activeDeviceId!, state.turnId, 1_000);
+    expect(state.nextTurnAt).toBe(6_000);
+
+    // Two seconds into a five second wait, the adult asks for ten.
+    state = applySettings(state, { turnGapMs: 10_000 }, 3_000);
+    expect(state.nextTurnAt).toBe(13_000);
+  });
+
+  it('leaves a lit turn alone', () => {
+    const state = startGame(roomWith(['a', 'b']), 0, alwaysFirst);
+    const changed = applySettings(state, { turnGapMs: 2_000 }, 500);
+    expect(changed.phase).toBe('active');
+    expect(changed.activeDeviceId).toBe(state.activeDeviceId);
+    expect(changed.nextTurnAt).toBeNull();
+  });
+
+  it('clamps what a phone sends into the range the controls offer', () => {
+    expect(clampTurnGap(0)).toBe(TURN_GAP_MIN_MS);
+    expect(clampTurnGap(-5_000)).toBe(TURN_GAP_MIN_MS);
+    expect(clampTurnGap(60_000)).toBe(TURN_GAP_MAX_MS);
+    expect(clampTurnGap(Number.NaN)).toBe(TURN_GAP_MS);
+    expect(clampTurnGap(7_500)).toBe(7_500);
+
+    expect(applySettings(roomWith([]), { turnGapMs: 999_999 }, 0).settings.turnGapMs).toBe(
+      TURN_GAP_MAX_MS,
+    );
+  });
+
+  it('is unchanged when the value does not move', () => {
+    const state = roomWith(['a']);
+    expect(applySettings(state, { turnGapMs: TURN_GAP_MS }, 5_000)).toBe(state);
+  });
+
+  it('keeps working for a room stored before settings existed', () => {
+    // A live room outlives a deployment. Without the fallback every nextTurnAt
+    // computed from it would be NaN and the game would stop dead.
+    const legacy = { ...roomWith(['a', 'b']) } as Record<string, unknown>;
+    delete legacy.settings;
+    const state = startGame(legacy as never, 0, alwaysFirst);
+    const acked = acknowledgeTurn(state, state.activeDeviceId!, state.turnId, 1_000);
+    expect(acked.nextTurnAt).toBe(1_000 + TURN_GAP_MS);
   });
 });
 

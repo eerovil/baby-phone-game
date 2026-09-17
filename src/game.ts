@@ -12,8 +12,16 @@
  * active one.
  */
 
-/** How long the room stays dark between one turn ending and the next starting. */
+/**
+ * How long the room stays dark between one turn ending and the next starting.
+ * This is the starting value; an adult can change it per room, which is what
+ * `RoomSettings.turnGapMs` holds.
+ */
 export const TURN_GAP_MS = 5_000;
+
+/** The range an adult may set the gap to, in milliseconds. */
+export const TURN_GAP_MIN_MS = 1_000;
+export const TURN_GAP_MAX_MS = 20_000;
 
 /** A room with no connected device for this long is thrown away. */
 export const ROOM_IDLE_TTL_MS = 30 * 60 * 1000;
@@ -37,8 +45,15 @@ export interface Device {
   joinedAt: number;
 }
 
+/** What an adult can change about a room. */
+export interface RoomSettings {
+  /** The dark gap between turns. */
+  turnGapMs: number;
+}
+
 export interface RoomState {
   code: string;
+  settings: RoomSettings;
   createdAt: number;
   /** Last moment a device was connected; drives idle expiry. */
   lastActivityAt: number;
@@ -69,6 +84,7 @@ export type Random = () => number;
 export function createRoom(code: string, now: number): RoomState {
   return {
     code,
+    settings: { turnGapMs: TURN_GAP_MS },
     createdAt: now,
     lastActivityAt: now,
     phase: 'lobby',
@@ -79,6 +95,43 @@ export function createRoom(code: string, now: number): RoomState {
     nextTurnAt: null,
     variant: 0,
   };
+}
+
+/**
+ * The room's gap, tolerating a room that was stored before settings existed:
+ * a live room outlives a deployment, and `undefined` here would turn every
+ * `nextTurnAt` into `NaN` and stop the game dead.
+ */
+function turnGap(state: RoomState): number {
+  return clampTurnGap(state.settings?.turnGapMs ?? TURN_GAP_MS);
+}
+
+/** Keep a value a phone sent inside the range the adult controls offer. */
+export function clampTurnGap(value: number): number {
+  if (!Number.isFinite(value)) return TURN_GAP_MS;
+  return Math.min(TURN_GAP_MAX_MS, Math.max(TURN_GAP_MIN_MS, Math.round(value)));
+}
+
+/**
+ * An adult changed a setting.
+ *
+ * A change made while the room is dark shortens or lengthens the wait that is
+ * already running, counted from now — so moving the slider has a visible effect
+ * instead of appearing to do nothing until the turn after next.
+ */
+export function applySettings(
+  state: RoomState,
+  settings: Partial<RoomSettings>,
+  now: number,
+): RoomState {
+  const turnGapMs = clampTurnGap(settings.turnGapMs ?? turnGap(state));
+  if (turnGapMs === turnGap(state)) return state;
+
+  const next: RoomState = { ...state, settings: { ...state.settings, turnGapMs } };
+  if (next.phase === 'waiting' && next.nextTurnAt !== null) {
+    next.nextTurnAt = now + turnGapMs;
+  }
+  return next;
 }
 
 export function connectedDevices(state: RoomState): Device[] {
@@ -119,7 +172,7 @@ export function joinDevice(state: RoomState, deviceId: string, now: number): Roo
   // A game that ran out of phones parks in `waiting` with no scheduled turn.
   // The device that just arrived is the one that can restart it.
   if (next.phase === 'waiting' && next.nextTurnAt === null) {
-    next = { ...next, nextTurnAt: now + TURN_GAP_MS };
+    next = { ...next, nextTurnAt: now + turnGap(next) };
   }
   return next;
 }
@@ -150,7 +203,7 @@ export function disconnectDevice(state: RoomState, deviceId: string, now: number
       phase: 'waiting',
       activeDeviceId: null,
       previousDeviceId: deviceId,
-      nextTurnAt: now + TURN_GAP_MS,
+      nextTurnAt: now + turnGap(next),
     };
   }
   return next;
@@ -248,7 +301,7 @@ export function acknowledgeTurn(
     ...state,
     phase: 'waiting',
     activeDeviceId: null,
-    nextTurnAt: now + TURN_GAP_MS,
+    nextTurnAt: now + turnGap(state),
     lastActivityAt: now,
   };
 }

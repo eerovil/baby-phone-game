@@ -17,8 +17,16 @@ with no app store and no developer account. The user interface is in Finnish.
 3. When at least two phones are in the room, tap **Aloita peli**.
 4. Play continues until an adult stops it.
 
-**Stopping the game:** press and hold the top-left corner of the screen of any
-black phone for about 2.5 seconds. A menu appears with **Lopeta peli**. A touch
+**Settings.** The lobby has a slider for **Tauko vuorojen välissä** — the dark
+gap between one phone being touched and the next lighting up. It starts at five
+seconds and goes from one to twenty. The setting belongs to the room, so moving
+it on any phone changes it for all of them, and the same slider is in the adult
+menu, so it can be adjusted mid-game without stopping. Shortening the gap while
+the room is already dark shortens the wait that is running.
+
+**Stopping the game, and the mid-game settings:** press and hold the top-left corner of the screen of any
+black phone for about 2.5 seconds. A menu appears with the gap slider and
+**Lopeta peli**. A touch
 on the lit phone is the child's move, so the exit lives on a black screen and
 behind a hold long enough that a baby's tap will not find it.
 

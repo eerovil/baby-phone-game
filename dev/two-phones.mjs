@@ -144,6 +144,33 @@ for (let turn = 1; turn <= TURNS; turn += 1) {
   ok(`turn ${turn}: next phone lit after ${gap}ms, turn id advanced by exactly 1`);
 }
 
+// The adult moves the gap slider: the change reaches both phones, and the next
+// turn really does arrive on the new timing.
+{
+  await Promise.all([a, b].map((phone) => phone.until((room) => room.phase === 'active')));
+  a.send({ type: 'settings', turnGapMs: 2000 });
+  await Promise.all([a, b].map((phone) => phone.until((room) => room.settings.turnGapMs === 2000)));
+  ok('the new gap reached both phones');
+
+  const active = [a, b].find((phone) => phone.lit);
+  const turnId = active.room.turnId;
+  const touchedAt = Date.now();
+  active.send({ type: 'ack', turnId });
+  await a.until((room) => room.phase === 'active' && room.turnId === turnId + 1, 12_000);
+  const gap = Date.now() - touchedAt;
+  if (gap < 1_600 || gap > 3_500) fail(`the two second gap measured ${gap}ms`);
+  ok(`next turn came after ${gap}ms with the gap set to 2000ms`);
+
+  // An out of range value is clamped rather than refused.
+  a.send({ type: 'settings', turnGapMs: 999_999 });
+  await Promise.all(
+    [a, b].map((phone) => phone.until((room) => room.settings.turnGapMs === 20_000)),
+  );
+  ok('an out of range gap was clamped to the maximum');
+  a.send({ type: 'settings', turnGapMs: 5000 });
+  await a.until((room) => room.settings.turnGapMs === 5000);
+}
+
 // Disconnect recovery: pull the plug on whichever phone is lit.
 const lit = [a, b].find((phone) => phone.lit);
 const other = lit === a ? b : a;
