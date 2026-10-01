@@ -25,6 +25,20 @@ it on any phone changes it for all of them, and the same slider is in the adult
 menu, so it can be adjusted mid-game without stopping. Shortening the gap while
 the room is already dark shortens the wait that is running.
 
+**Own voice.** The lobby has **Nauhoita oma ääni**: record up to five seconds
+(it stops by itself), listen with **Kuuntele**, remove with **Poista nauhoitus**.
+Record it once. The phone that recorded it keeps the clip, and whenever that
+phone is in a room the room sends the clip to every phone, which then repeat it
+during a turn instead of the tune until the child touches the screen. A fresh
+recording replaces the room's clip; a clip a phone brings back when it rejoins
+only fills a room that has none. Recording needs HTTPS, and the button is hidden
+where the browser has no microphone.
+
+**Keeping the screen on.** The game holds a screen wake lock while it runs. On
+browsers without one — Chrome before 84, iOS before 16.4 — it plays a tiny
+silent black video on a loop behind the game surface instead, because a browser
+does not let the screen sleep during video playback.
+
 **Stopping the game, and the mid-game settings:** press and hold the top-left corner of the screen of any
 black phone for about 2.5 seconds. A menu appears with the gap slider and
 **Lopeta peli**. A touch
@@ -66,8 +80,11 @@ Two ways round it:
 ## What is deliberately not there
 
 - No accounts, no login, no database.
-- No sound or image files downloaded during play: the sounds are synthesised
-  with WebAudio and the animations are drawn on a canvas.
+- No sound or image files downloaded during play: the tune is synthesised with
+  WebAudio, the recorded voice arrives over the room socket ahead of time, the
+  keep-awake video is inlined in the script, and the animations are drawn on a
+  canvas.
+- No recording stored on the server. The room holds the clip in memory only.
 - Nothing on the child's screen except the animation. No status text, no
   buttons, not even a connection indicator — a reconnect happens in the dark.
 - No attempt to work while the phone is locked or the app is in the background.
