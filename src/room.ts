@@ -23,6 +23,7 @@ import {
   type RoomState,
 } from './game';
 import { parseClientMessage, type RoomView, type ServerMessage } from './protocol';
+import { offerVoice, type RoomVoice } from './voice';
 
 interface Connection {
   socket: WebSocket;
@@ -34,6 +35,12 @@ export class Room implements DurableObject {
   private room: RoomState | null = null;
   private loaded = false;
   private readonly connections = new Set<Connection>();
+  /**
+   * The recorded voice the room plays, held in memory only. The phone that
+   * recorded it keeps the real copy and offers it again whenever it connects,
+   * so a restarted object gets it back without anything stored here for good.
+   */
+  private voice: RoomVoice | null = null;
 
   constructor(ctx: DurableObjectState) {
     this.storage = ctx.storage;
@@ -96,6 +103,7 @@ export class Room implements DurableObject {
     server.addEventListener('error', close);
 
     this.send(connection, this.stateMessage(deviceId));
+    this.send(connection, this.voiceMessage());
     this.broadcastExcept(connection);
 
     return new Response(null, { status: 101, webSocket: client });
@@ -127,6 +135,14 @@ export class Room implements DurableObject {
       case 'hello':
         this.send(connection, this.stateMessage(connection.deviceId));
         return;
+      case 'voice': {
+        const next = offerVoice(this.voice, connection.deviceId, message.clip, message.replace);
+        if (next === this.voice) return;
+        this.voice = next;
+        const update = this.voiceMessage();
+        for (const other of this.connections) this.send(other, update);
+        return;
+      }
       case 'start':
         this.room = startGame(this.room, now, Math.random);
         break;
@@ -170,6 +186,7 @@ export class Room implements DurableObject {
 
     if (isExpired(this.room, now)) {
       this.room = null;
+      this.voice = null;
       await this.storage.deleteAll();
       return;
     }
@@ -215,6 +232,10 @@ export class Room implements DurableObject {
 
   private stateMessage(deviceId: string): ServerMessage {
     return { type: 'state', you: deviceId, room: this.view() };
+  }
+
+  private voiceMessage(): ServerMessage {
+    return { type: 'voice', from: this.voice?.deviceId ?? null, clip: this.voice?.clip ?? null };
   }
 
   private send(connection: Connection, message: ServerMessage): void {

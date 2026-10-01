@@ -64,6 +64,17 @@
         <p class="hint">Asetus koskee koko huonetta ja sen voi vaihtaa myös kesken pelin.</p>
       </section>
 
+      <section class="settings voice">
+        <p id="voice-status"></p>
+        <button id="voice-record" class="secondary" type="button">Nauhoita oma ääni</button>
+        <button id="voice-play" class="secondary" type="button" hidden>Kuuntele</button>
+        <button id="voice-delete" class="link" type="button" hidden>Poista nauhoitus</button>
+        <p id="voice-problem" class="notice" role="status"></p>
+        <p class="hint">
+          Nauhoitus jää tähän puhelimeen ja soi kaikissa puhelimissa, kun tämä puhelin on huoneessa.
+        </p>
+      </section>
+
       <button id="start" class="primary" type="button" disabled>Aloita peli</button>
       <p id="start-hint" class="hint">Peli tarvitsee vähintään kaksi puhelinta.</p>
       <button id="leave" class="secondary" type="button">Poistu huoneesta</button>
@@ -72,6 +83,9 @@
 
     <!-- The child's surface. Black and empty unless this phone is the lit one. -->
     <div id="game" class="screen game" hidden>
+      <!-- Keeps the screen on where the Wake Lock API is missing. Black on
+           black, under the canvas; see WakeLock in client/main.ts. -->
+      <video id="keep-awake" class="keep-awake" muted playsinline aria-hidden="true"></video>
       <canvas id="canvas"></canvas>
       <div id="adult" class="adult" hidden>
         <section class="settings">

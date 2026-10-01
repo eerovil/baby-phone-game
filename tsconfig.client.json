@@ -16,5 +16,5 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["client", "src/protocol.ts", "src/game.ts"]
+  "include": ["client", "src/protocol.ts", "src/game.ts", "src/voice.ts"]
 }

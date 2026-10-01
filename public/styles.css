@@ -93,6 +93,19 @@ button.secondary {
   color: var(--ink);
 }
 
+button.recording {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.voice {
+  text-align: center;
+}
+
+.voice p {
+  margin: 0;
+}
+
 button.link {
   background: none;
   border: none;
@@ -216,9 +229,23 @@ input {
 }
 
 #canvas {
+  position: relative;
   width: 100%;
   height: 100%;
   display: block;
+}
+
+/* Full size so the browser counts it as watched, and behind the canvas so the
+   child never sees it. It is black anyway. */
+.keep-awake {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  background: #000;
+  pointer-events: none;
 }
 
 /* Only reachable through the deliberate long press, so it is safe for it to be

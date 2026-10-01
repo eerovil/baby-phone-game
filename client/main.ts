@@ -5,17 +5,27 @@
 
 import { Sound } from './audio';
 import { RoomConnection, type ConnectionStatus } from './connection';
+import { KEEP_AWAKE_VIDEO } from './keep-awake';
+import { canRecord, VoiceRecorder } from './recorder';
 import { Visuals } from './visuals';
 import type { RoomView } from '../src/protocol';
+import { clipDurationMs, VOICE_MAX_MS } from '../src/voice';
 
 const DEVICE_KEY = 'bpg.deviceId';
 const ROOM_KEY = 'bpg.roomCode';
+/** This phone's own recorded voice, as base64. Kept until an adult deletes it. */
+const VOICE_KEY = 'bpg.voice';
 
 /** What a room code looks like, everywhere the client checks one. */
 const ROOM_CODE = /^[0-9]{6}$/;
 
 /** How long the adult must hold the top-left corner to reach the exit menu. */
 const ADULT_HOLD_MS = 2_500;
+
+/** Seconds in Finnish decimal notation, e.g. "2,4 s". */
+function seconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
+}
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -36,33 +46,66 @@ function deviceId(): string {
 }
 
 /**
- * Keeps the screen on while the game runs, where the browser supports it.
- * Unsupported browsers — older iOS especially — simply dim as usual; the game
- * still works, the adult just wakes the phone.
+ * Keeps the screen on while the game runs.
+ *
+ * The Wake Lock API where the browser has it. Where it is missing or refused —
+ * Chrome before 84, iOS before 16.4 — a silent black video plays on a loop
+ * behind the game surface instead, because no browser lets the screen sleep
+ * while a video is playing. It sits full size under the canvas rather than
+ * hidden: Chrome only counts a video it can see.
  */
 class WakeLock {
   private sentinel: WakeLockSentinel | null = null;
 
+  constructor(private readonly video: HTMLVideoElement) {
+    video.muted = true;
+    // Both spellings: iOS before 10 only reads the prefixed one, and without
+    // it the video would open full screen over the game.
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.loop = true;
+  }
+
   async acquire(): Promise<void> {
-    if (!('wakeLock' in navigator)) return;
-    if (this.sentinel) return;
-    try {
-      this.sentinel = await navigator.wakeLock.request('screen');
-      this.sentinel.addEventListener('release', () => {
+    if ('wakeLock' in navigator) {
+      if (this.sentinel) return;
+      try {
+        this.sentinel = await navigator.wakeLock.request('screen');
+        this.sentinel.addEventListener('release', () => {
+          this.sentinel = null;
+        });
+        return;
+      } catch {
         this.sentinel = null;
-      });
-    } catch {
-      this.sentinel = null;
+      }
     }
+    this.playVideo();
   }
 
   async release(): Promise<void> {
+    if (!this.video.paused) this.video.pause();
     const sentinel = this.sentinel;
     this.sentinel = null;
     try {
       await sentinel?.release();
     } catch {
       // Already gone. Nothing to do.
+    }
+  }
+
+  private playVideo(): void {
+    if (!this.video.paused) return;
+    // Set on first use, so a phone with a working wake lock never decodes it.
+    if (!this.video.src) this.video.src = KEEP_AWAKE_VIDEO;
+    try {
+      // A muted inline video may start without a touch on every browser this
+      // app supports. Old ones return nothing here rather than a promise.
+      const started = this.video.play() as Promise<void> | undefined;
+      started?.catch(() => {
+        // Refused. The screen dims as it always did; the next touch retries.
+      });
+    } catch {
+      // Same.
     }
   }
 }
@@ -98,8 +141,11 @@ async function leaveFullscreen(): Promise<void> {
 class App {
   private readonly sound = new Sound();
   private readonly visuals = new Visuals(element<HTMLCanvasElement>('canvas'));
-  private readonly wakeLock = new WakeLock();
+  private readonly wakeLock = new WakeLock(element<HTMLVideoElement>('keep-awake'));
+  private readonly recorder = new VoiceRecorder();
   private readonly me = deviceId();
+  /** Which phone recorded the voice the room plays, or null for the tune. */
+  private voiceFrom: string | null = null;
 
   private connection: RoomConnection | null = null;
   private room: RoomView | null = null;
@@ -113,6 +159,7 @@ class App {
     this.bindSetup();
     this.bindSettings();
     this.bindLobby();
+    this.bindVoice();
     this.bindGame();
     this.bindLifecycle();
 
@@ -211,6 +258,13 @@ class App {
     element('lobby-code').textContent = code;
     this.connection = new RoomConnection(code, this.me, {
       onState: (room) => this.onState(room),
+      onVoice: (from, clip) => this.onVoice(from, clip),
+      onOpen: () => {
+        // Offer the stored clip every time. The room only takes it when it has
+        // none, so this never overrides a newer recording from another phone.
+        const clip = localStorage.getItem(VOICE_KEY);
+        if (clip) this.connection?.send({ type: 'voice', clip, replace: false });
+      },
       onStatus: (status) => this.onStatus(status),
       onError: (_code, message) => this.setNotice(message),
     });
@@ -241,8 +295,7 @@ class App {
 
   /** Both labels, in Finnish decimal notation. Zero reads as a word. */
   private renderGapLabels(turnGapMs: number): void {
-    const text =
-      turnGapMs === 0 ? 'ei taukoa' : `${(turnGapMs / 1000).toFixed(1).replace('.', ',')} s`;
+    const text = turnGapMs === 0 ? 'ei taukoa' : seconds(turnGapMs);
     element('gap-value').textContent = text;
     element('adult-gap-value').textContent = text;
   }
@@ -255,6 +308,100 @@ class App {
       this.connection?.send({ type: 'start' });
     });
     element('leave').addEventListener('click', () => this.leaveRoom());
+  }
+
+  // --- recorded voice ------------------------------------------------------
+
+  private bindVoice(): void {
+    if (!canRecord()) element('voice-record').hidden = true;
+    element('voice-record').addEventListener('click', () => void this.toggleRecording());
+    element('voice-play').addEventListener('click', () => {
+      void this.sound.unlock().then(() => this.sound.preview());
+    });
+    element('voice-delete').addEventListener('click', () => {
+      localStorage.removeItem(VOICE_KEY);
+      this.connection?.send({ type: 'voice', clip: null, replace: true });
+      // The room drops only its own copy of this phone's clip; mirror that here
+      // rather than wait for the broadcast.
+      if (this.voiceFrom === this.me) {
+        this.voiceFrom = null;
+        this.sound.setVoice(null);
+      }
+      this.renderVoice('');
+    });
+    this.renderVoice('');
+  }
+
+  private async toggleRecording(): Promise<void> {
+    if (this.recorder.recording) {
+      this.finishRecording();
+      return;
+    }
+    // The tap is the gesture both the audio context and the microphone need.
+    await this.sound.unlock();
+    const context = this.sound.audioContext;
+    if (!context) {
+      this.renderVoice('Tällä selaimella ei voi nauhoittaa.');
+      return;
+    }
+    this.sound.stop();
+    try {
+      await this.recorder.start(context, () => this.finishRecording());
+    } catch {
+      this.recorder.discard();
+      this.renderVoice('Mikrofonia ei saatu käyttöön. Salli mikrofoni selaimen asetuksista.');
+      return;
+    }
+    this.renderVoice('');
+  }
+
+  private finishRecording(): void {
+    if (!this.recorder.recording) return;
+    const clip = this.recorder.finish();
+    if (!clip) {
+      this.renderVoice('Nauhoitukseen ei tullut ääntä. Yritä uudelleen ja puhu lähempänä.');
+      return;
+    }
+    localStorage.setItem(VOICE_KEY, clip);
+    // Play it here at once; the room's broadcast confirms it for everyone.
+    this.voiceFrom = this.me;
+    this.sound.setVoice(clip);
+    this.connection?.send({ type: 'voice', clip, replace: true });
+    this.renderVoice('');
+  }
+
+  private onVoice(from: string | null, clip: string | null): void {
+    this.voiceFrom = from;
+    this.sound.setVoice(clip);
+    this.renderVoice('');
+  }
+
+  /** The voice box in the lobby: what the room plays and what can be done. */
+  private renderVoice(problem: string): void {
+    const recording = this.recorder.recording;
+    const own = localStorage.getItem(VOICE_KEY);
+    let status: string;
+    if (recording) {
+      status = `Nauhoitetaan… Puhu nyt. Nauhoitus loppuu itsestään ${VOICE_MAX_MS / 1000} sekunnin kohdalla.`;
+    } else if (this.voiceFrom === null) {
+      status = 'Pelissä soi sävel. Nauhoita oma ääni, niin se kuuluu kaikista puhelimista.';
+    } else if (this.voiceFrom === this.me && own) {
+      status = `Pelissä soi tämän puhelimen nauhoitus (${seconds(clipDurationMs(own))}).`;
+    } else {
+      status = 'Pelissä soi toisen puhelimen nauhoitus.';
+    }
+    element('voice-status').textContent = status;
+    element('voice-problem').textContent = problem;
+
+    const record = element<HTMLButtonElement>('voice-record');
+    record.textContent = recording
+      ? 'Lopeta nauhoitus'
+      : own
+        ? 'Nauhoita uudelleen'
+        : 'Nauhoita oma ääni';
+    record.classList.toggle('recording', recording);
+    element('voice-play').hidden = recording || !this.sound.hasVoice;
+    element('voice-delete').hidden = recording || !own;
   }
 
   private leaveRoom(): void {
