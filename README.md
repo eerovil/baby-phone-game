@@ -77,6 +77,17 @@ Two ways round it:
   **Aloita peli** takes the full screen, so the child still sees no browser
   chrome — it is only the launcher icon and the standalone window that are lost.
 
+On **Android 6** two things differ:
+
+- With Play Services older than 11, **Install app** makes a plain home-screen
+  shortcut instead of a wrapper APK. It still opens standalone, so the Android 8
+  crash above does not apply. Chrome 106 is the last version that runs there.
+- The phone may refuse the site's certificate, because its root store has no
+  current Let's Encrypt root. Check which root the live chain ends at with
+  `openssl s_client -showcerts`, then either install that root on the phone
+  (Android asks for a screen lock first) or serve from a CA whose root Android 6
+  already trusts.
+
 ## What is deliberately not there
 
 - No accounts, no login, no database.
