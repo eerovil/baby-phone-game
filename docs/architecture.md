@@ -54,6 +54,13 @@ attention (`nextWakeAt`) and sets the alarm for it, so the same mechanism runs
 the five second gap between turns and the thirty minute expiry of an abandoned
 room.
 
+It also holds the recorded voice, in memory only (`src/voice.ts` has the
+rules). The phone that recorded it keeps the clip in `localStorage` and offers
+it on every connect, so an object that was evicted or redeployed gets it back
+from that phone. `offerVoice` decides: a fresh recording (`replace`) wins, a
+re-offered stored clip only fills an empty room, and only the owner can delete
+it.
+
 Identity is the device id the phone generates once and keeps in
 `localStorage`, never the socket. A phone that reconnects returns to its seat
 rather than appearing as a new player, and a socket closing is ignored if that
@@ -65,7 +72,14 @@ device already has a newer one open.
   and reacting to each `state` message.
 - `connection.ts` — the WebSocket, with exponential backoff and a keepalive
   ping. Reconnection carries the same device id, so it rejoins the same seat.
-- `audio.ts` — WebAudio synthesis. `unlock()` runs inside the tap that creates
+- `recorder.ts` — microphone capture through a script processor (not
+  `MediaRecorder`, which is missing before iOS 14.3), trimmed, levelled and
+  encoded as 16 kHz μ-law by `src/voice.ts`.
+- `keep-awake.ts` — the inlined silent video (H.264, or VP8 where H.264 is
+  missing) that `WakeLock` in `main.ts` loops when the Wake Lock API is missing
+  or refused.
+- `audio.ts` — WebAudio synthesis, and the room's recorded voice looped with a
+  short pause in place of the tune. `unlock()` runs inside the tap that creates
   or joins a room, which is what lets a sound triggered by the server minutes
   later actually play on iOS and Android.
 - `visuals.ts` — four canvas animations. `stop()` cancels the animation frame
@@ -81,8 +95,10 @@ black screen.
 JSON objects over one WebSocket at `/ws?room=<code>&device=<uuid>`.
 
 Phone to room: `hello`, `start`, `stop`, `leave`, `settings {turnGapMs}`,
-`ack {turnId}`, `ping`.
-Room to phone: `state {you, room}`, `error {code, message}`, `pong`.
+`ack {turnId}`, `voice {clip, replace}`, `ping`.
+Room to phone: `state {you, room}`, `voice {from, clip}`, `error {code, message}`,
+`pong`. `voice` is sent apart from `state` because a clip is up to ~107 kB: once
+to a phone as it connects, and to every phone when the clip changes.
 
 `state` carries the whole room: code, `settings`, phase, devices,
 `activeDeviceId`, `turnId`, `variant` and `nextTurnInMs`. The settings ride in
