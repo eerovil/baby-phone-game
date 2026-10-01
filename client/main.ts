@@ -5,7 +5,7 @@
 
 import { Sound } from './audio';
 import { RoomConnection, type ConnectionStatus } from './connection';
-import { KEEP_AWAKE_VIDEO } from './keep-awake';
+import { keepAwakeVideo } from './keep-awake';
 import { canRecord, VoiceRecorder } from './recorder';
 import { Visuals } from './visuals';
 import type { RoomView } from '../src/protocol';
@@ -96,7 +96,7 @@ class WakeLock {
   private playVideo(): void {
     if (!this.video.paused) return;
     // Set on first use, so a phone with a working wake lock never decodes it.
-    if (!this.video.src) this.video.src = KEEP_AWAKE_VIDEO;
+    if (!this.video.src) this.video.src = keepAwakeVideo(this.video);
     try {
       // A muted inline video may start without a touch on every browser this
       // app supports. Old ones return nothing here rather than a promise.
