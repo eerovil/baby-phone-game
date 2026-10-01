@@ -32,12 +32,25 @@ class Phone {
     this.id = crypto.randomUUID();
     this.room = null;
     this.waiters = [];
+    /** The last `voice` message, and anyone waiting for the next. */
+    this.voice = null;
+    this.voiceWaiters = [];
+    this.pongWaiters = [];
   }
 
   async connect() {
     this.socket = new WebSocket(`${wsBase}/ws?room=${this.code}&device=${this.id}`);
     this.socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data);
+      if (message.type === 'voice') {
+        this.voice = message;
+        for (const waiter of this.voiceWaiters.splice(0)) waiter(message);
+        return;
+      }
+      if (message.type === 'pong') {
+        for (const waiter of this.pongWaiters.splice(0)) waiter();
+        return;
+      }
       if (message.type !== 'state') return;
       this.room = message.room;
       for (const waiter of this.waiters.splice(0)) waiter(message.room);
@@ -78,6 +91,34 @@ class Phone {
     throw new Error(`${this.name}: condition not met in ${timeoutMs}ms`);
   }
 
+  /** Resolve once the last voice message satisfies `predicate`. */
+  async untilVoice(predicate, timeoutMs = 5_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (!(this.voice && predicate(this.voice))) {
+      if (Date.now() > deadline) fail(`${this.name}: voice condition not met in ${timeoutMs}ms`);
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, deadline - Date.now());
+        this.voiceWaiters.push(() => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    }
+    return this.voice;
+  }
+
+  /**
+   * Resolve once the room has answered everything sent before this. The room
+   * handles one phone's messages in order, so a pong means any broadcast they
+   * caused has already arrived.
+   */
+  settle() {
+    return new Promise((resolve) => {
+      this.pongWaiters.push(resolve);
+      this.send({ type: 'ping' });
+    });
+  }
+
   get lit() {
     return this.room?.phase === 'active' && this.room.activeDeviceId === this.id;
   }
@@ -101,6 +142,45 @@ await a.connect();
 await b.connect();
 await a.until((room) => room.devices.filter((device) => device.connected).length === 2);
 ok('both phones are in the lobby');
+
+// The recorded voice: one phone's clip reaches every phone, a stored clip
+// offered on connect does not override a fresh one, and only its owner can
+// delete it.
+{
+  // Two short, different clips: 12 bytes of μ-law each.
+  const clipA = 'AAECAwQFBgcICQoL';
+  const clipB = 'f39/f39/f39/f39/';
+  await Promise.all([a, b].map((phone) => phone.untilVoice((voice) => voice.clip === null)));
+  ok('both phones were told on connect that the room has no voice');
+
+  a.send({ type: 'voice', clip: clipA, replace: true });
+  await Promise.all(
+    [a, b].map((phone) => phone.untilVoice((v) => v.clip === clipA && v.from === a.id)),
+  );
+  ok("A's recording reached both phones");
+
+  b.send({ type: 'voice', clip: clipB, replace: false });
+  b.send({ type: 'voice', clip: null, replace: true });
+  await b.settle();
+  if (b.voice.clip !== clipA) fail("B's stored clip or delete changed A's recording");
+  ok("B re-offering its stored clip, or deleting its own, left A's recording alone");
+
+  const c = new Phone('C', code);
+  await c.connect();
+  await c.untilVoice((v) => v.clip === clipA);
+  ok('a phone that joins later is sent the recording on connect');
+  c.send({ type: 'leave' });
+  c.socket.close();
+
+  a.send({ type: 'voice', clip: null, replace: true });
+  await Promise.all([a, b].map((phone) => phone.untilVoice((v) => v.clip === null)));
+  ok('A deleting its recording put every phone back on the tune');
+
+  b.send({ type: 'voice', clip: 'not base64!', replace: true });
+  await b.settle();
+  if (b.voice.clip !== null) fail('a malformed clip was accepted');
+  ok('a malformed clip was refused');
+}
 
 a.send({ type: 'start' });
 await a.until((room) => room.phase === 'active');

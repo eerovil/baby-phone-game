@@ -13,6 +13,10 @@ export type ConnectionStatus = 'connecting' | 'open' | 'closed';
 
 export interface ConnectionHandlers {
   onState(room: RoomView, you: string): void;
+  /** The room's recorded voice changed, or this connection just opened. */
+  onVoice(from: string | null, clip: string | null): void;
+  /** The socket is open; anything this phone owes the room can go now. */
+  onOpen(): void;
   onStatus(status: ConnectionStatus): void;
   onError(code: string, message: string): void;
 }
@@ -73,6 +77,7 @@ export class RoomConnection {
       this.retryMs = RETRY_MIN_MS;
       this.handlers.onStatus('open');
       this.send({ type: 'hello' });
+      this.handlers.onOpen();
       this.pingTimer = window.setInterval(() => this.send({ type: 'ping' }), PING_MS);
     });
 
@@ -85,6 +90,7 @@ export class RoomConnection {
         return;
       }
       if (message.type === 'state') this.handlers.onState(message.room, message.you);
+      else if (message.type === 'voice') this.handlers.onVoice(message.from, message.clip);
       else if (message.type === 'error') this.handlers.onError(message.code, message.message);
     });
 

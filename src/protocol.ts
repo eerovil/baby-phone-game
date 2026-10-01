@@ -7,6 +7,7 @@
  */
 
 import type { Phase, RoomSettings } from './game';
+import { isValidClip } from './voice';
 
 export interface DeviceView {
   id: string;
@@ -37,12 +38,23 @@ export type ClientMessage =
   | { type: 'settings'; turnGapMs: number }
   /** The child touched this phone while it was lit up. */
   | { type: 'ack'; turnId: number }
+  /**
+   * This phone's recorded voice, or `null` to delete it. `replace` is true for
+   * a recording just made, false when re-offering a stored one on connect.
+   */
+  | { type: 'voice'; clip: string | null; replace: boolean }
   | { type: 'ping' };
 
 /** Room to phone. */
 export type ServerMessage =
   | { type: 'state'; you: string; room: RoomView }
   | { type: 'error'; code: string; message: string }
+  /**
+   * The clip the room plays instead of the tune, and which phone recorded it.
+   * Sent apart from `state` because it is large and rarely changes: once when a
+   * phone connects, and to everyone when the clip changes.
+   */
+  | { type: 'voice'; from: string | null; clip: string | null }
   | { type: 'pong' };
 
 export function parseClientMessage(raw: string): ClientMessage | null {
@@ -73,6 +85,11 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       // number. A non-number is a broken message and is dropped.
       if (typeof turnGapMs !== 'number' || !Number.isFinite(turnGapMs)) return null;
       return { type: 'settings', turnGapMs };
+    }
+    case 'voice': {
+      const { clip, replace } = value as { clip?: unknown; replace?: unknown };
+      if (clip !== null && !isValidClip(clip)) return null;
+      return { type: 'voice', clip, replace: replace === true };
     }
     default:
       return null;
