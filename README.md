@@ -36,8 +36,12 @@ where the browser has no microphone.
 
 **Keeping the screen on.** The game holds a screen wake lock while it runs. On
 browsers without one — Chrome before 84, iOS before 16.4 — it plays a tiny
-silent black video on a loop behind the game surface instead, because a browser
-does not let the screen sleep during video playback.
+silent black video over and over behind the game surface instead, because a
+browser does not let the screen sleep during video playback. An iPhone always
+plays the video as well, since an installed app's wake lock did nothing before
+iOS 18.4; there the video is started by the first touch on the phone, so tap
+the screen once on every iPhone before the game begins (joining the room is
+enough).
 
 **Stopping the game, and the mid-game settings:** press and hold the top-left corner of the screen of any
 black phone for about 2.5 seconds. A menu appears with the gap slider and

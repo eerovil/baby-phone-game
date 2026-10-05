@@ -5,7 +5,7 @@
 
 import { Sound } from './audio';
 import { RoomConnection, type ConnectionStatus } from './connection';
-import { keepAwakeVideo } from './keep-awake';
+import { isIos, WakeLock } from './keep-awake';
 import { canRecord, VoiceRecorder } from './recorder';
 import { Visuals } from './visuals';
 import type { RoomView } from '../src/protocol';
@@ -46,71 +46,6 @@ function deviceId(): string {
 }
 
 /**
- * Keeps the screen on while the game runs.
- *
- * The Wake Lock API where the browser has it. Where it is missing or refused —
- * Chrome before 84, iOS before 16.4 — a silent black video plays on a loop
- * behind the game surface instead, because no browser lets the screen sleep
- * while a video is playing. It sits full size under the canvas rather than
- * hidden: Chrome only counts a video it can see.
- */
-class WakeLock {
-  private sentinel: WakeLockSentinel | null = null;
-
-  constructor(private readonly video: HTMLVideoElement) {
-    video.muted = true;
-    // Both spellings: iOS before 10 only reads the prefixed one, and without
-    // it the video would open full screen over the game.
-    video.setAttribute('playsinline', '');
-    video.setAttribute('webkit-playsinline', '');
-    video.loop = true;
-  }
-
-  async acquire(): Promise<void> {
-    if ('wakeLock' in navigator) {
-      if (this.sentinel) return;
-      try {
-        this.sentinel = await navigator.wakeLock.request('screen');
-        this.sentinel.addEventListener('release', () => {
-          this.sentinel = null;
-        });
-        return;
-      } catch {
-        this.sentinel = null;
-      }
-    }
-    this.playVideo();
-  }
-
-  async release(): Promise<void> {
-    if (!this.video.paused) this.video.pause();
-    const sentinel = this.sentinel;
-    this.sentinel = null;
-    try {
-      await sentinel?.release();
-    } catch {
-      // Already gone. Nothing to do.
-    }
-  }
-
-  private playVideo(): void {
-    if (!this.video.paused) return;
-    // Set on first use, so a phone with a working wake lock never decodes it.
-    if (!this.video.src) this.video.src = keepAwakeVideo(this.video);
-    try {
-      // A muted inline video may start without a touch on every browser this
-      // app supports. Old ones return nothing here rather than a promise.
-      const started = this.video.play() as Promise<void> | undefined;
-      started?.catch(() => {
-        // Refused. The screen dims as it always did; the next touch retries.
-      });
-    } catch {
-      // Same.
-    }
-  }
-}
-
-/**
  * Ask the browser for the whole screen.
  *
  * This matters more than it looks: installing the app is not available on every
@@ -141,7 +76,11 @@ async function leaveFullscreen(): Promise<void> {
 class App {
   private readonly sound = new Sound();
   private readonly visuals = new Visuals(element<HTMLCanvasElement>('canvas'));
-  private readonly wakeLock = new WakeLock(element<HTMLVideoElement>('keep-awake'));
+  private readonly wakeLock = new WakeLock(
+    element<HTMLVideoElement>('keep-awake'),
+    'wakeLock' in navigator ? navigator.wakeLock : undefined,
+    isIos(navigator),
+  );
   private readonly recorder = new VoiceRecorder();
   private readonly me = deviceId();
   /** Which phone recorded the voice the room plays, or null for the tune. */
@@ -523,6 +462,13 @@ class App {
   // --- lifecycle ---------------------------------------------------------
 
   private bindLifecycle(): void {
+    // Every touch anywhere, before the buttons see it: iOS only lets the
+    // keep-awake video start from one. `touchend` and `click` are the events
+    // iOS counts as a touch for that; `touchstart` is not.
+    const touched = () => this.wakeLock.touched();
+    document.addEventListener('touchend', touched, true);
+    document.addEventListener('click', touched, true);
+
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
       // Coming back to the foreground: the socket, the audio context and the

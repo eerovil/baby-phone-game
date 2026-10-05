@@ -314,6 +314,97 @@
   function keepAwakeVideo(video) {
     return video.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"') ? MP4 : WEBM;
   }
+  var REWIND_AFTER_S = 0.5;
+  function isIos(nav) {
+    return /iPad|iPhone|iPod/.test(nav.userAgent) || nav.platform === "MacIntel" && nav.maxTouchPoints > 1;
+  }
+  var WakeLock = class {
+    constructor(video, api, ios) {
+      __publicField(this, "video", video);
+      __publicField(this, "api", api);
+      __publicField(this, "ios", ios);
+      __publicField(this, "sentinel", null);
+      /** True between `acquire()` and `release()`. */
+      __publicField(this, "wanted", false);
+      /** True once a touch has started the video, which is what iOS asks for. */
+      __publicField(this, "primed", false);
+      video.muted = !ios;
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      video.addEventListener("timeupdate", () => {
+        if (this.video.currentTime > REWIND_AFTER_S) this.video.currentTime = 0;
+      });
+      video.addEventListener("ended", () => {
+        if (!this.wanted) return;
+        this.video.currentTime = 0;
+        this.playVideo();
+      });
+    }
+    async acquire() {
+      this.wanted = true;
+      if (this.ios) this.playVideo();
+      if (this.api) {
+        if (this.sentinel) return;
+        try {
+          const sentinel = await this.api.request("screen");
+          this.sentinel = sentinel;
+          sentinel.addEventListener("release", () => {
+            this.sentinel = null;
+          });
+          return;
+        } catch (e) {
+          this.sentinel = null;
+        }
+      }
+      this.playVideo();
+    }
+    async release() {
+      this.wanted = false;
+      if (!this.video.paused) this.video.pause();
+      const sentinel = this.sentinel;
+      this.sentinel = null;
+      try {
+        await (sentinel == null ? void 0 : sentinel.release());
+      } catch (e) {
+      }
+    }
+    /**
+     * Call from every touch on the page. Starts the video if it should be
+     * playing and is not, and otherwise unlocks it for later on iOS.
+     */
+    touched() {
+      var _a;
+      if (this.wanted) {
+        if (this.ios || !this.sentinel) this.playVideo();
+        return;
+      }
+      if (!this.ios || this.primed) return;
+      (_a = this.start()) == null ? void 0 : _a.then(
+        () => {
+          if (!this.wanted) this.video.pause();
+        },
+        () => void 0
+      );
+    }
+    playVideo() {
+      var _a;
+      if (!this.video.paused) return;
+      (_a = this.start()) == null ? void 0 : _a.catch(() => {
+      });
+    }
+    /** Start the video, setting its source on first use. */
+    start() {
+      if (!this.video.src) this.video.src = keepAwakeVideo(this.video);
+      try {
+        const started = this.video.play();
+        return started == null ? void 0 : started.then(() => {
+          this.primed = true;
+        });
+      } catch (e) {
+        return void 0;
+      }
+    }
+  };
 
   // client/recorder.ts
   function legacyGetUserMedia() {
@@ -556,50 +647,6 @@
     }
     return id;
   }
-  var WakeLock = class {
-    constructor(video) {
-      __publicField(this, "video", video);
-      __publicField(this, "sentinel", null);
-      video.muted = true;
-      video.setAttribute("playsinline", "");
-      video.setAttribute("webkit-playsinline", "");
-      video.loop = true;
-    }
-    async acquire() {
-      if ("wakeLock" in navigator) {
-        if (this.sentinel) return;
-        try {
-          this.sentinel = await navigator.wakeLock.request("screen");
-          this.sentinel.addEventListener("release", () => {
-            this.sentinel = null;
-          });
-          return;
-        } catch (e) {
-          this.sentinel = null;
-        }
-      }
-      this.playVideo();
-    }
-    async release() {
-      if (!this.video.paused) this.video.pause();
-      const sentinel = this.sentinel;
-      this.sentinel = null;
-      try {
-        await (sentinel == null ? void 0 : sentinel.release());
-      } catch (e) {
-      }
-    }
-    playVideo() {
-      if (!this.video.paused) return;
-      if (!this.video.src) this.video.src = keepAwakeVideo(this.video);
-      try {
-        const started = this.video.play();
-        started == null ? void 0 : started.catch(() => {
-        });
-      } catch (e) {
-      }
-    }
-  };
   async function enterFullscreen() {
     const root = document.documentElement;
     if (document.fullscreenElement || !root.requestFullscreen) return;
@@ -619,7 +666,11 @@
     constructor() {
       __publicField(this, "sound", new Sound());
       __publicField(this, "visuals", new Visuals(element("canvas")));
-      __publicField(this, "wakeLock", new WakeLock(element("keep-awake")));
+      __publicField(this, "wakeLock", new WakeLock(
+        element("keep-awake"),
+        "wakeLock" in navigator ? navigator.wakeLock : void 0,
+        isIos(navigator)
+      ));
       __publicField(this, "recorder", new VoiceRecorder());
       __publicField(this, "me", deviceId());
       /** Which phone recorded the voice the room plays, or null for the tune. */
@@ -951,6 +1002,9 @@
     }
     // --- lifecycle ---------------------------------------------------------
     bindLifecycle() {
+      const touched = () => this.wakeLock.touched();
+      document.addEventListener("touchend", touched, true);
+      document.addEventListener("click", touched, true);
       document.addEventListener("visibilitychange", () => {
         var _a;
         if (document.visibilityState !== "visible") return;
