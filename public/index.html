@@ -83,8 +83,9 @@
 
     <!-- The child's surface. Black and empty unless this phone is the lit one. -->
     <div id="game" class="screen game" hidden>
-      <!-- Keeps the screen on where the Wake Lock API is missing. Black on
-           black, under the canvas; see WakeLock in client/main.ts. -->
+      <!-- Keeps the screen on where the Wake Lock API is missing, and on every
+           iPhone. Black on black, under the canvas; see WakeLock in
+           client/keep-awake.ts. -->
       <video id="keep-awake" class="keep-awake" muted playsinline aria-hidden="true"></video>
       <canvas id="canvas"></canvas>
       <div id="adult" class="adult" hidden>

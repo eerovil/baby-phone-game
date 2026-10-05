@@ -75,9 +75,11 @@ device already has a newer one open.
 - `recorder.ts` — microphone capture through a script processor (not
   `MediaRecorder`, which is missing before iOS 14.3), trimmed, levelled and
   encoded as 16 kHz μ-law by `src/voice.ts`.
-- `keep-awake.ts` — the inlined silent video (H.264, or VP8 where H.264 is
-  missing) that `WakeLock` in `main.ts` loops when the Wake Lock API is missing
-  or refused.
+- `keep-awake.ts` — `WakeLock`, and the inlined silent video (H.264, or VP8
+  where H.264 is missing) it plays when the Wake Lock API is missing or
+  refused, and always on an iPhone. On an iPhone the video is unmuted, never
+  set to `loop`, and first started by a touch, because WebKit lets only such a
+  video keep the display on.
 - `audio.ts` — WebAudio synthesis, and the room's recorded voice looped with a
   short pause in place of the tune. `unlock()` runs inside the tap that creates
   or joins a room, which is what lets a sound triggered by the server minutes

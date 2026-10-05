@@ -17,5 +17,8 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src", "tests", "scripts"]
+  "include": ["src", "tests", "scripts"],
+  // Tests of phone-side code need the browser library, so they are checked
+  // with the client project instead.
+  "exclude": ["tests/keep-awake.test.ts"]
 }

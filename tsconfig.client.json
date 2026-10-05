@@ -16,5 +16,11 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["client", "src/protocol.ts", "src/game.ts", "src/voice.ts"]
+  "include": [
+    "client",
+    "src/protocol.ts",
+    "src/game.ts",
+    "src/voice.ts",
+    "tests/keep-awake.test.ts"
+  ]
 }
